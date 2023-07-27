@@ -7,11 +7,12 @@ from pylivox2.packing import unpack_pack, CmdId, CmdType, make_pack_of_struct_ar
 
 
 class Device:
-    def __init__(self, dev_type, serial_number, lidar_ip, cmd_port):
+    def __init__(self, dev_type, serial_number, lidar_ip, cmd_port, host_cmd_port=56000):
         self.dev_type = dev_type
         self.serial_number = serial_number
         self.lidar_ip = lidar_ip
         self.cmd_port = cmd_port
+        self.host_cmd_port = host_cmd_port
 
     def __repr__(self):
         return f"Device{{type: {self.dev_type}, sn: {self.serial_number}, cmd: {self.lidar_ip}:{self.cmd_port}}}"
@@ -25,6 +26,7 @@ class Device:
 
     def generic_req(self, cmd_id: CmdId, *args):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.bind(("", self.host_cmd_port))
             msg = make_pack_of_struct_args(0, 1,
                                            cmd_id, CmdType.REQ, SenderType.HOST,
                                            *args)
@@ -39,6 +41,7 @@ class Device:
 
     def get_ip_that_route_to(self):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.bind(("", self.host_cmd_port))
             s.connect((self.lidar_ip, self.cmd_port))
             return s.getsockname()[0]
 

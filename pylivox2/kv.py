@@ -32,6 +32,15 @@ class Key(Enum):
     CUR_GLASS_HEAT_STATE = 0x8012
 
 
+def lidar_diag_status_unpack(buffer: bytes):
+    (bf,) = struct.unpack("<H", buffer)
+    system_status = bf & 7
+    scan_status = bf >> 3 & 7
+    ranging_status = bf >> 6 & 7
+    communication_status = bf >> 9 & 7
+    return system_status, scan_status, ranging_status, communication_status
+
+
 value_structs = {
     Key.PCL_DATA_TYPE: "<B",
     Key.PATTERN_MODE: "<B",
@@ -54,7 +63,7 @@ value_structs = {
     Key.MAC: "<6s",
     Key.CUR_WORK_STATE: "<B",  # TODO: enum
     # Key.STATUS_CODE: "<32s",
-    # Key.LIDAR_DIAG_STATUS: "<H",
+    Key.LIDAR_DIAG_STATUS: (None, lidar_diag_status_unpack),
     Key.LIDAR_FLASH_STATUS: "<?",
     Key.FW_TYPE: "<B",
     Key.CUR_GLASS_HEAT_STATE: "<?",
@@ -135,6 +144,8 @@ def kv_list_unpack(key_num, list_span):
                     # TODO: check for calcsize
                     # result += (key, struct.unpack(pack_str, value))
                     value = struct.unpack(pack_str, value)
+                case (_, unpacker) if callable(unpacker):
+                    value = unpacker(value)
                 case _:
                     logger.warning(f"unknown pattern: {pattern}")
                     # result += (key, value)

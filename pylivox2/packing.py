@@ -75,8 +75,7 @@ def make_pack_of_struct_args(version: int, seq_num: int, cmd_id: CmdId,
     match structs[cmd_id]:
         case str(pack_str):
             data = struct.pack(pack_str, *args)
-        case (packer, _):
-            # custom packer
+        case (packer, _) if callable(packer):
             data = packer(*args)
         case _:
             raise RuntimeError(f"struct descriptor for {cmd_id} has unknown pattern: {structs[cmd_id]}")
@@ -112,10 +111,7 @@ def unpack_pack(buffer: bytes):
     match structs[cmd_id]:
         case str(pack_str):
             data_unpacked = struct.unpack(pack_str, data)
-        case (_, unpacker):
-            # custom unpacker
-            if unpacker is None:
-                raise RuntimeError(f"struct descriptor for {cmd_id} has no unpacker, bytes is {data}")
+        case (_, unpacker) if callable(unpacker):
             data_unpacked = unpacker(data)
         case _:
             raise RuntimeError(f"struct descriptor for {cmd_id} has unknown pattern: {structs[cmd_id]}")

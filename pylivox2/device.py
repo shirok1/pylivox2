@@ -1,9 +1,22 @@
 import socket
+from enum import Enum
+from typing import Callable
 
 from loguru import logger
 
 from pylivox2.kv import Key
 from pylivox2.packing import unpack_pack, CmdId, CmdType, make_pack_of_struct_args, SenderType
+
+
+class WorkStatus(Enum):
+    SAMPLING = 0x01
+    IDLE = 0x02
+    SLEEP = 0x03
+    ERROR = 0x04
+    SELFCHECK = 0x05
+    MOTORSTARUP = 0x06
+    MOTORSTOP = 0x07
+    UPGRADE = 0x08
 
 
 class Device:
@@ -51,7 +64,7 @@ class Device:
             logger.warning("Got errno: {}", errno)
         # logger.info("Got values: {}", dict(values))
         for k, v in values:
-            logger.info("{}: {}", k, v)
+            logger.debug("{}: {}", k, v)
         return dict(values)
 
     def get_host_ip_config(self):
@@ -59,12 +72,36 @@ class Device:
         if Key.POINTCLOUD_HOST_IPCFG not in value_dict or Key.IMU_HOST_IPCFG not in value_dict:
             raise ValueError("Host IP config not found")
         host_ip_raw, host_port, lidar_port = value_dict[Key.POINTCLOUD_HOST_IPCFG]
-        host_ip_raw_imu, host_port_imu, lidar_port_imu = value_dict[Key.IMU_HOST_IPCFG]
+        # host_ip_raw_imu, host_port_imu, lidar_port_imu = value_dict[Key.IMU_HOST_IPCFG]
         # assert host_ip_raw == host_ip_raw_imu
         host_ip = socket.inet_ntoa(host_ip_raw)
-        logger.info("Host data: {}:{} (imu: {}), LiDAR data port: {} (imu: {})", host_ip, host_port, host_port_imu,
-                    lidar_port, lidar_port_imu)
         return host_ip, host_port
+
+    def get_work_mode_point_send(self):
+        value_dict = self.get_parameters([Key.WORK_TGT_MODE, Key.POINT_SEND_EN])
+        if Key.WORK_TGT_MODE not in value_dict or Key.POINT_SEND_EN not in value_dict:
+            raise ValueError("Work mode or point send not found")
+        work_mode = WorkStatus(value_dict[Key.WORK_TGT_MODE][0])
+        point_send = value_dict[Key.POINT_SEND_EN][0]
+        return work_mode, point_send
+
+    def watch_heartbeat_until(self, pred: Callable[[tuple], bool]):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.bind(("", self.host_cmd_port))
+            logger.info("Listening to heartbeat...")
+            s.connect((self.lidar_ip, self.cmd_port))
+            while True:
+                buffer, (addr, port) = s.recvfrom(1424)
+                logger.debug("Received {} bytes from {}:{}", len(buffer), addr, port)
+                hb_kv = dict(unpack_pack(buffer)[5])
+                diag_status = hb_kv[Key.LIDAR_DIAG_STATUS]
+                work_state = WorkStatus(hb_kv[Key.CUR_WORK_STATE][0])
+                flash_status = hb_kv[Key.LIDAR_FLASH_STATUS][0]
+                logger.debug("diag_status: {}, work_state: {}, flash_status: {}", diag_status, work_state, flash_status)
+                status = (diag_status, work_state, flash_status)
+                yield status
+                if pred(*status):
+                    break
 
     def set_parameters(self, key_value_list: list[tuple[Key, tuple]]):
         logger.debug("Setting parameters: {}", key_value_list)
@@ -82,7 +119,7 @@ class Device:
         logger.info("Set host to {}", auto_host_ip)
 
     def set_work_mode(self, work: bool):
-        self.set_parameters([(Key.WORK_TGT_MODE, (0x01 if work else 0x02,))])
+        self.set_parameters([(Key.WORK_TGT_MODE, ((WorkStatus.SAMPLING if work else WorkStatus.IDLE).value,))])
 
     def set_point_send(self, enable: bool):
         self.set_parameters([(Key.POINT_SEND_EN, (enable,))])

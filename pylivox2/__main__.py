@@ -1,4 +1,5 @@
 import argparse
+from socket import inet_ntoa
 
 from loguru import logger
 
@@ -21,7 +22,13 @@ else:
     device = Device(10, "", "192.168.1.100", 56000)
 match args.action:
     case "version":
-        device.get_parameters([Key.VERSION_APP, Key.VERSION_LOADER, Key.VERSION_HARDWARE, Key.LIDAR_IPCFG])
+        ret = device.get_parameters([Key.VERSION_APP, Key.VERSION_LOADER, Key.VERSION_HARDWARE, Key.LIDAR_IPCFG])
+        logger.info("App Version: {}.{}.{}.{}", *ret[Key.VERSION_APP])
+        logger.info("Loader Version: {}.{}.{}.{}", *ret[Key.VERSION_LOADER])
+        logger.info("Hardware Version: {}.{}.{}.{}", *ret[Key.VERSION_HARDWARE])
+        logger.info("Lidar IP: {}", inet_ntoa(ret[Key.LIDAR_IPCFG][0]))
+        logger.info("Lidar Netmask: {}", inet_ntoa(ret[Key.LIDAR_IPCFG][1]))
+        logger.info("Lidar Gateway: {}", inet_ntoa(ret[Key.LIDAR_IPCFG][2]))
     case "get_mode":
         work_state, point_send_en = device.get_work_mode_point_send()
         logger.info("{}, Point Send: {}", work_state, point_send_en)

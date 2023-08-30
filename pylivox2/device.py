@@ -23,6 +23,8 @@ class WorkStatus(Enum):
 class Device:
     def __init__(self, dev_type, serial_number, lidar_ip, cmd_port, host_cmd_port=56000):
         self.dev_type = dev_type
+        self.is_mid360 = dev_type == 9
+        self.is_hap = dev_type == 10
         self.serial_number = serial_number
         self.lidar_ip = lidar_ip
         self.cmd_port = cmd_port
@@ -105,8 +107,19 @@ class Device:
             logger.warning("Got errno: {}", errno)
             logger.warning("First error configuration: {}", key_value_list[error_key])
 
-    def set_host_to(self, host_ip: str, host_port: int = 57000):
-        self.set_parameters([(Key.POINTCLOUD_HOST_IPCFG, (socket.inet_aton(host_ip), host_port, 57000))])
+    def set_host_to(self, host_ip: str, host_pc_port: int = 57000, host_imu_port: int = 58000):
+        if self.is_mid360:
+            self.set_parameters([
+                (Key.STATE_INFO_HOST_IPCFG, (socket.inet_aton(host_ip), self.host_cmd_port, 56000)),
+                (Key.POINTCLOUD_HOST_IPCFG, (socket.inet_aton(host_ip), host_pc_port, 57000)),
+                (Key.IMU_HOST_IPCFG, (socket.inet_aton(host_ip), host_imu_port, 58000)),
+            ])
+        else:
+            # HAP doesn't support STATE_INFO_HOST_IPCFG
+            self.set_parameters([
+                (Key.POINTCLOUD_HOST_IPCFG, (socket.inet_aton(host_ip), host_pc_port, 57000)),
+                (Key.IMU_HOST_IPCFG, (socket.inet_aton(host_ip), host_imu_port, 58000)),
+            ])
 
     def set_host_to_this(self, host_port: int = 57000):
         auto_host_ip = self.get_ip_that_route_to()

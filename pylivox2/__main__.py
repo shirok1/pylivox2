@@ -7,6 +7,7 @@ from pylivox2.device import Device, WorkStatus
 from pylivox2.kv import Key
 
 parser = argparse.ArgumentParser()
+parser.add_argument("-t", "--type", required=True, choices=["hap", "mid-360"], help="LiDAR type")
 group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument("-d", "--discover", action="store_true", help="discover devices")
 group.add_argument("--ip", nargs='?', const="192.168.1.100", help="IP address of the device")
@@ -19,7 +20,7 @@ logger.info("Args: {}", args)
 if args.discover:
     device = Device.discover_one()
 else:
-    device = Device(10, "", "192.168.1.100", 56000)
+    device = Device(10 if args.type == "hap" else 9, "", args.ip, 56000 if args.type == "hap" else 56100)
 match args.action:
     case "version":
         ret = device.get_parameters([Key.VERSION_APP, Key.VERSION_LOADER, Key.VERSION_HARDWARE, Key.LIDAR_IPCFG])

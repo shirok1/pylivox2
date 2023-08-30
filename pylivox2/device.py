@@ -78,13 +78,12 @@ class Device:
         host_ip = socket.inet_ntoa(host_ip_raw)
         return host_ip, host_port
 
-    def get_work_mode_point_send(self):
-        value_dict = self.get_parameters([Key.WORK_TGT_MODE, Key.POINT_SEND_EN])
-        if Key.WORK_TGT_MODE not in value_dict or Key.POINT_SEND_EN not in value_dict:
-            raise ValueError("Work mode or point send not found")
+    def get_work_mode(self):
+        value_dict = self.get_parameters([Key.WORK_TGT_MODE])
+        if Key.WORK_TGT_MODE not in value_dict:
+            raise ValueError("Work mode not found")
         work_mode = WorkStatus(value_dict[Key.WORK_TGT_MODE][0])
-        point_send = value_dict[Key.POINT_SEND_EN][0]
-        return work_mode, point_send
+        return work_mode
 
     def watch_heartbeat_until(self, pred: Callable[[tuple], bool]):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:

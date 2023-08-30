@@ -30,19 +30,19 @@ match args.action:
         logger.info("Lidar Netmask: {}", inet_ntoa(ret[Key.LIDAR_IPCFG][1]))
         logger.info("Lidar Gateway: {}", inet_ntoa(ret[Key.LIDAR_IPCFG][2]))
     case "get_mode":
-        work_state, point_send_en = device.get_work_mode_point_send()
-        logger.info("{}, Point Send: {}", work_state, point_send_en)
+        work_state = device.get_work_mode()
+        logger.info("{}", work_state)
     case "enable":
-        work_state, point_send_en = device.get_work_mode_point_send()
-        logger.info("{}, Point Send: {}", work_state, point_send_en)
+        work_state = device.get_work_mode()
+        logger.info("{}", work_state)
         device.set_host_to_this()
         device.set_work_mode(True)
         for _, work_state, _ in device.watch_heartbeat_until(
                 lambda _, state, __: state == WorkStatus.SAMPLING):
             logger.info("work_state: {}", work_state)
     case "disable":
-        work_state, point_send_en = device.get_work_mode_point_send()
-        logger.info("{}, Point Send: {}", work_state, point_send_en)
+        work_state = device.get_work_mode()
+        logger.info("{}", work_state)
         device.set_work_mode(False)
         for _, work_state, _ in device.watch_heartbeat_until(
                 lambda _, state, __: state == WorkStatus.IDLE):

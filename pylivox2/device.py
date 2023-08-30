@@ -17,6 +17,7 @@ class WorkStatus(Enum):
     MOTORSTARUP = 0x06
     MOTORSTOP = 0x07
     UPGRADE = 0x08
+    READY = 0x09
 
 
 class Device:

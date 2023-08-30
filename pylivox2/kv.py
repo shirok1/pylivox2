@@ -91,7 +91,7 @@ value_structs = {
     Key.LIDAR_DIAG_STATUS: (None, lidar_diag_status_unpack),
     Key.LIDAR_FLASH_STATUS: "<?",
     Key.FW_TYPE: "<B",
-    Key.HMS_CODE: "<8L",
+    Key.HMS_CODE: "<BBHBBHBBHBBHBBHBBHBBHBBH",
     Key.CUR_GLASS_HEAT_STATE: "<?",
 }
 

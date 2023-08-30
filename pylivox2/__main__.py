@@ -37,20 +37,16 @@ match args.action:
         logger.info("{}", work_state)
         device.set_host_to_this()
         device.set_work_mode(True)
-        for _, work_state, _ in device.watch_heartbeat_until(
-                lambda _, state, __: state == WorkStatus.SAMPLING):
-            logger.info("work_state: {}", work_state)
+        for hb_kv in device.watch_heartbeat_until(
+                lambda kv: WorkStatus(kv[Key.CUR_WORK_STATE][0]) == WorkStatus.SAMPLING):
+            logger.info("work_state: {}", WorkStatus(hb_kv[Key.CUR_WORK_STATE][0]))
     case "disable":
         work_state = device.get_work_mode()
         logger.info("{}", work_state)
         device.set_work_mode(False)
-        for _, work_state, _ in device.watch_heartbeat_until(
-                lambda _, state, __: state == WorkStatus.IDLE):
-            logger.info("work_state: {}", work_state)
+        for hb_kv in device.watch_heartbeat_until(
+                lambda kv: WorkStatus(kv[Key.CUR_WORK_STATE][0]) == WorkStatus.IDLE):
+            logger.info("work_state: {}", WorkStatus(hb_kv[Key.CUR_WORK_STATE][0]))
     case "watch":
-        for diag_status, work_state, flash_status in device.watch_heartbeat_until(
-                lambda _, __, ___: False):
-            system_status, scan_status, ranging_status, communication_status = diag_status
-            logger.info("system_status: {}, scan_status: {}, ranging_status: {}, communication_status: {}",
-                        system_status, scan_status, ranging_status, communication_status)
-            logger.info("work_state: {}, flash_status: {}", work_state, flash_status)
+        for hb_kv in device.watch_heartbeat_until(lambda _: False):
+            pass

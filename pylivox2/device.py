@@ -85,22 +85,17 @@ class Device:
         work_mode = WorkStatus(value_dict[Key.WORK_TGT_MODE][0])
         return work_mode
 
-    def watch_heartbeat_until(self, pred: Callable[[tuple], bool]):
+    def watch_heartbeat_until(self, pred: Callable[[dict], bool]):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.bind(("", self.host_cmd_port))
             logger.info("Listening to heartbeat...")
-            s.connect((self.lidar_ip, self.cmd_port))
             while True:
                 buffer, (addr, port) = s.recvfrom(1424)
                 logger.debug("Received {} bytes from {}:{}", len(buffer), addr, port)
                 hb_kv = dict(unpack_pack(buffer)[5])
-                diag_status = hb_kv[Key.LIDAR_DIAG_STATUS]
-                work_state = WorkStatus(hb_kv[Key.CUR_WORK_STATE][0])
-                flash_status = hb_kv[Key.LIDAR_FLASH_STATUS][0]
-                logger.debug("diag_status: {}, work_state: {}, flash_status: {}", diag_status, work_state, flash_status)
-                status = (diag_status, work_state, flash_status)
-                yield status
-                if pred(*status):
+                logger.debug("{}", hb_kv)
+                yield hb_kv
+                if pred(hb_kv):
                     break
 
     def set_parameters(self, key_value_list: list[tuple[Key, tuple]]):

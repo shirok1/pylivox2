@@ -35,6 +35,31 @@ class Livox2Daemon(Node):
         Key.FW_TYPE,
     ]
 
+    HMS_ID_DESC = {
+        0x0102: "Environment temperature is slightly high. Please check the environment temperature and losing heat measures.",
+        0x0104: "The window is dirty, which will influence the reliability of the point cloud. Please clean the window.",
+        0x0111: "Abnormal temperature of internal components of the device. Please check the environment temperature and losing heat measures.",
+        0x0112: "Abnormal temperature of internal components of the device. Please check the environment temperature and losing heat measures.",
+        0x0113: "IMU stopped working. Please try to restart the device to restore.",
+        0x0114: "Environment temperature is high. Please check the environment temperature and losing heat measures.",
+        0x0115: "Environment temperature beyond the limit, the device has stopped working. Please check the environment temperature and losing heat measures.",
+        0x0116: "Abnormal external voltage. Please check the external voltage.",
+        0x0117: "Abnormal lidar parameters. Please try to restart the device to restore.",
+        0x0201: "Scan module is heating. Please wait for the scan module heating.",
+        # 0x0210-0x0219: "Scan module is abnormal, the system is trying to recover. Please wait, if it lasts too long, please try restarting the device to restore.",
+        # 0x0210-0x0219: "Scan module is abnormal. Please try to restart the device to restore.",
+        0x0401: "Communication link was linked down, now it is recovered. please check the communication link.",
+        0x0402: "PTP time synchronization stop or time gap is too big. Please check the PTP time source.",
+        0x0403: "The version of PTP is 1588-v2.1, device don't support this version. Please replace 1588-v2.1 version with 1588.2.0 version.",
+        0x0404: "PPS time synchronization abnormal. Please check the PPS and GPS signal.",
+        0x0405: "There was an exception in time synchronization. Please check the exception reason.",
+        0x0406: "Time synchronization accuracy is low. Please check the time source.",
+        0x0407: "PPS time synchronization fails because of loss of GPS signal. Please check the GPS signal.",
+        0x0408: "PPS time synchronization fails because of loss of PPS signal. Please check the PPS signal.",
+        0x0409: "GPS signal is abnormal. Please check the GPS time source.",
+        0x040A: "The PTP and GPTP signals exist at the same time. Please check the network topology, use PTP or GPTP alone to synchronize.",
+    }
+
     def __init__(self):
         super().__init__("livox2_daemon")
         NodeLoguruSink(self).set_as_only_logger()
@@ -60,7 +85,8 @@ class Livox2Daemon(Node):
         for kv in self.device.watch_heartbeat_until(lambda _: not rclpy.ok()):
             dynamic_kv = {key: kv[key] for key in (
                 set(kv.keys()) - set(self.STATIC_KEYS))}
-            logger.info(f"dynamic_kv: {dynamic_kv}")
+            logger.info("=====HEARTBEAT RECEIVED=====")
+            logger.debug(f"dynamic_kv: {dynamic_kv}")
             logger.info("WORK_TGT_MODE: {}",
                         WorkStatus(kv[Key.WORK_TGT_MODE][0]))
             logger.info("CUR_WORK_STATE: {}",
@@ -83,15 +109,20 @@ class Livox2Daemon(Node):
                 codes = kv[Key.HMS_CODE]
                 for start_index in range(0, 24, 3):
                     level, _, abnormal_id = codes[start_index: start_index + 3]
+                    if level == 0:
+                        continue
+                    msg = f"HMS: 0x{abnormal_id:04x}"
+                    if abnormal_id in self.HMS_ID_DESC:
+                        msg += " " + self.HMS_ID_DESC[abnormal_id]
                     match level:
                         case 0x01:
-                            logger.info(f"HMS: 0x{abnormal_id:04x}")
+                            logger.info(msg)
                         case 0x02:
-                            logger.warning(f"HMS: 0x{abnormal_id:04x}")
+                            logger.warning(msg)
                         case 0x03:
-                            logger.error(f"HMS: 0x{abnormal_id:04x}")
+                            logger.error(msg)
                         case 0x04:
-                            logger.critical(f"HMS: 0x{abnormal_id:04x}")
+                            logger.critical(msg)
             if Key.CORE_TEMP in kv.keys():
                 logger.info(f"CORE_TEMP: {kv[Key.CORE_TEMP][0]/100}℃")
             if Key.LOCAL_TIME_NOW in kv.keys():
@@ -103,6 +134,7 @@ class Livox2Daemon(Node):
                     f"LOCAL_TIME_NOW: {local_time_now} ({local_time_now - datetime.fromtimestamp(0)})")
                 logger.info(
                     f"TIME_SYNC_TYPE: {kv[Key.TIME_SYNC_TYPE][0]}, LAST_SYNC_TIME: {last_sync_time}, TIME_OFFSET: {kv[Key.TIME_OFFSET][0]/1000_000}ms")
+            logger.info("============================")
 
 
 @logger.catch()

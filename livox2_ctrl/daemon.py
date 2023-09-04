@@ -98,9 +98,7 @@ class Livox2Daemon(Node):
                 local_time_now = \
                     datetime.fromtimestamp(
                         kv[Key.LOCAL_TIME_NOW][0] / 1000_000_000)
-                last_sync_time = \
-                    timedelta(microseconds=kv[Key.LAST_SYNC_TIME][0])
-                # last_sync_time = datetime.fromtimestamp(kv[Key.LAST_SYNC_TIME][0]/1000_000)
+                last_sync_time = kv[Key.LAST_SYNC_TIME][0]
                 logger.info(
                     f"LOCAL_TIME_NOW: {local_time_now} ({local_time_now - datetime.fromtimestamp(0)})")
                 logger.info(

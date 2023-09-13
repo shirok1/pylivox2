@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import rclpy
 from loguru import logger
 from rclpy.node import Node
+from std_msgs.msg import Float32, String
 
 from pylivox2.device import Device, WorkStatus
 from pylivox2.kv import Key
@@ -80,61 +81,89 @@ class Livox2Daemon(Node):
             if Key.PRODUCT_INFO in kv.keys():
                 logger.info(f"{kv[Key.PRODUCT_INFO][0].decode()}")
 
+        self.action_queue = []
+        self.action_sub = self.create_subscription(
+            String, "lidar_action", lambda msg: self.action_queue.append(msg), 10)
+        self.core_temp_pub = self.create_publisher(
+            Float32, 'lidar_core_temp', 10)
+
     def go(self):
         self.device.set_host_to_this()
-        for kv in self.device.watch_heartbeat_until(lambda _: not rclpy.ok()):
-            dynamic_kv = {key: kv[key] for key in (
-                set(kv.keys()) - set(self.STATIC_KEYS))}
-            logger.info("=====HEARTBEAT RECEIVED=====")
-            logger.debug(f"dynamic_kv: {dynamic_kv}")
-            logger.info("WORK_TGT_MODE: {}",
-                        WorkStatus(kv[Key.WORK_TGT_MODE][0]))
-            logger.info("CUR_WORK_STATE: {}",
-                        WorkStatus(kv[Key.CUR_WORK_STATE][0]))
-            if Key.LIDAR_DIAG_STATUS in kv.keys():
-                codes = dynamic_kv[Key.LIDAR_DIAG_STATUS]
-                module_names = ["System", "Scan", "Ranging", "Communication"]
-                for index in range(0, 4):
-                    match codes[index]:
-                        case 1:
-                            logger.warning(
-                                f"DIAG_STATUS: {module_names[index]} Module")
-                        case 2:
-                            logger.error(
-                                f"DIAG_STATUS: {module_names[index]} Module")
-                        case 3:
-                            logger.critical(
-                                f"DIAG_STATUS: {module_names[index]} Module")
-            if Key.HMS_CODE in kv.keys():
-                codes = kv[Key.HMS_CODE]
-                for start_index in range(0, 24, 3):
-                    level, _, abnormal_id = codes[start_index: start_index + 3]
-                    if level == 0:
-                        continue
-                    msg = f"HMS: 0x{abnormal_id:04x}"
-                    if abnormal_id in self.HMS_ID_DESC:
-                        msg += " " + self.HMS_ID_DESC[abnormal_id]
-                    match level:
-                        case 0x01:
-                            logger.info(msg)
-                        case 0x02:
-                            logger.warning(msg)
-                        case 0x03:
-                            logger.error(msg)
-                        case 0x04:
-                            logger.critical(msg)
-            if Key.CORE_TEMP in kv.keys():
-                logger.info(f"CORE_TEMP: {kv[Key.CORE_TEMP][0]/100}℃")
-            if Key.LOCAL_TIME_NOW in kv.keys():
-                local_time_now = \
-                    datetime.fromtimestamp(
-                        kv[Key.LOCAL_TIME_NOW][0] / 1000_000_000)
-                last_sync_time = kv[Key.LAST_SYNC_TIME][0]
-                logger.info(
-                    f"LOCAL_TIME_NOW: {local_time_now} ({local_time_now - datetime.fromtimestamp(0)})")
-                logger.info(
-                    f"TIME_SYNC_TYPE: {kv[Key.TIME_SYNC_TYPE][0]}, LAST_SYNC_TIME: {last_sync_time}, TIME_OFFSET: {kv[Key.TIME_OFFSET][0]/1000_000}ms")
-            logger.info("============================")
+        while True:
+            for kv in self.device.watch_heartbeat_until(lambda _: not rclpy.ok()):
+                dynamic_kv = {key: kv[key] for key in (
+                    set(kv.keys()) - set(self.STATIC_KEYS))}
+                logger.info("=====HEARTBEAT RECEIVED=====")
+                logger.debug(f"dynamic_kv: {dynamic_kv}")
+                logger.info("WORK_TGT_MODE: {}",
+                            WorkStatus(kv[Key.WORK_TGT_MODE][0]))
+                logger.info("CUR_WORK_STATE: {}",
+                            WorkStatus(kv[Key.CUR_WORK_STATE][0]))
+                if Key.LIDAR_DIAG_STATUS in kv.keys():
+                    codes = dynamic_kv[Key.LIDAR_DIAG_STATUS]
+                    module_names = ["System", "Scan",
+                                    "Ranging", "Communication"]
+                    for index in range(0, 4):
+                        match codes[index]:
+                            case 1:
+                                logger.warning(
+                                    f"DIAG_STATUS: {module_names[index]} Module")
+                            case 2:
+                                logger.error(
+                                    f"DIAG_STATUS: {module_names[index]} Module")
+                            case 3:
+                                logger.critical(
+                                    f"DIAG_STATUS: {module_names[index]} Module")
+                if Key.HMS_CODE in kv.keys():
+                    codes = kv[Key.HMS_CODE]
+                    for start_index in range(0, 24, 3):
+                        level, _, abnormal_id = codes[start_index: start_index + 3]
+                        if level == 0:
+                            continue
+                        msg = f"HMS: 0x{abnormal_id:04x}"
+                        if abnormal_id in self.HMS_ID_DESC:
+                            msg += " " + self.HMS_ID_DESC[abnormal_id]
+                        match level:
+                            case 0x01:
+                                logger.info(msg)
+                            case 0x02:
+                                logger.warning(msg)
+                            case 0x03:
+                                logger.error(msg)
+                            case 0x04:
+                                logger.critical(msg)
+                if Key.CORE_TEMP in kv.keys():
+                    core_temp = kv[Key.CORE_TEMP][0]/100
+                    logger.info(f"CORE_TEMP: {core_temp}℃")
+                    msg = Float32()
+                    msg.data = core_temp
+                    self.core_temp_pub.publish(msg)
+                if Key.LOCAL_TIME_NOW in kv.keys():
+                    local_time_now = \
+                        datetime.fromtimestamp(
+                            kv[Key.LOCAL_TIME_NOW][0] / 1000_000_000)
+                    last_sync_time = kv[Key.LAST_SYNC_TIME][0]
+                    logger.info(
+                        f"LOCAL_TIME_NOW: {local_time_now} ({local_time_now - datetime.fromtimestamp(0)})")
+                    logger.info(
+                        f"TIME_SYNC_TYPE: {kv[Key.TIME_SYNC_TYPE][0]}, LAST_SYNC_TIME: {last_sync_time}, TIME_OFFSET: {kv[Key.TIME_OFFSET][0]/1000_000}ms")
+                logger.info("============================")
+
+                rclpy.spin_once(self, timeout_sec=0)
+                if len(self.action_queue) != 0:
+                    break
+            for action in self.action_queue:
+                logger.debug(f"Received action: {action}")
+                match action.data:
+                    case "enable":
+                        logger.warning("ENABLING SAMPLING")
+                        self.device.set_work_mode(True)
+                    case "disable":
+                        logger.warning("DISABLING SAMPLING")
+                        self.device.set_work_mode(False)
+                    case _:
+                        logger.warning(f"UNKNOWN ACTION: {action.data}")
+            self.action_queue = []
 
 
 @logger.catch()
